@@ -7,7 +7,8 @@
 3. **Поставил Authelia** — OIDC-провайдер для авторизации по логину/паролю — `scripts/setup-authelia.sh`
 4. **Поставил Caddy** — reverse proxy с автоматическим HTTPS (Let's Encrypt) — `scripts/setup-caddy.sh`
 5. **Включил встроенный DERP-сервер** — relay WireGuard через HTTPS (встроен в Headscale)
-6. **Настроил exit node** — весь трафик устройств идёт через VM — `scripts/setup-exit-node.sh`
+6. **Настроил exit node `yc-node`** — весь трафик устройств идёт через VM — `scripts/setup-exit-node.sh`
+7. **Настроил exit node `us-node`** — double VPN через второй Tailscale в Docker — `scripts/setup-us-node.sh`
 
 ## Порядок установки с нуля
 
@@ -24,6 +25,13 @@ ssh ubuntu@$VM_IP "DOMAIN=$DOMAIN bash -s" < scripts/setup-caddy.sh
 ssh ubuntu@$VM_IP "DOMAIN=$DOMAIN AUTHELIA_PASSWORD='<PASSWORD>' bash -s" < scripts/setup-authelia.sh
 ssh ubuntu@$VM_IP "DOMAIN=$DOMAIN HEADSCALE_OIDC=true bash -s" < scripts/setup-headscale.sh
 ssh ubuntu@$VM_IP "DOMAIN=$DOMAIN EXIT_NODE_USER=sergey bash -s" < scripts/setup-exit-node.sh
+ssh ubuntu@$VM_IP "DOMAIN=$DOMAIN EXIT_NODE_USER=sergey bash -s" < scripts/setup-us-node.sh
+
+# 4. Залогиниться в корпоративный VPN (us-node)
+ssh ubuntu@$VM_IP
+source /etc/profile.d/us-node.sh
+us-reset    # открыть URL в браузере, залогиниться
+us-up       # подключить EU exit node
 ```
 
 ## Подключение клиентов
@@ -33,7 +41,9 @@ ssh ubuntu@$VM_IP "DOMAIN=$DOMAIN EXIT_NODE_USER=sergey bash -s" < scripts/setup
 1. Открыть Tailscale → три точки → **Use an alternate server**
 2. Ввести `https://<DOMAIN>`
 3. Откроется форма логина Authelia — ввести логин/пароль
-4. Готово. Выбрать exit node `yc-node` в настройках Tailscale
+4. Готово. Выбрать exit node:
+   - `yc-node` — exit node на VM
+   - `us-node` — double VPN
 
 ### Компьютер (Linux/macOS/Windows)
 
@@ -55,6 +65,26 @@ tailscale switch --list
 sudo tailscale switch <профиль>
 ```
 
+## Exit nodes
+
+| Имя | Описание |
+|-----|----------|
+| `yc-node` | Exit node на VM |
+| `us-node` | Double VPN — два Tailscale в Docker-контейнерах |
+
+### Управление us-node (на сервере)
+
+```bash
+ssh ubuntu@<VM_IP>
+source /etc/profile.d/us-node.sh
+
+us-reset    # переавторизация во втором Tailscale (по необходимости)
+us-up       # подключить EU exit node
+us-down     # отключить
+us-status   # статус корп. VPN
+us-logs     # логи контейнера
+```
+
 ## Полезные команды на сервере
 
 ```bash
@@ -62,7 +92,8 @@ ssh ubuntu@<VM_IP>
 
 sudo headscale users list              # список пользователей
 sudo headscale nodes list              # подключённые устройства
-sudo tailscale status                  # статус exit node и соединений
+sudo tailscale status                  # статус yc-node
+sudo docker ps                         # статус контейнеров us-corp, us-node
 ```
 
 ## Terraform
