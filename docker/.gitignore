@@ -1,0 +1,5 @@
+.env
+secrets/
+headscale/config.yaml
+authelia/configuration.yml
+authelia/users_database.yml

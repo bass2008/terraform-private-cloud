@@ -1,0 +1,110 @@
+services:
+  caddy:
+    image: caddy:latest
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+      - "9443:9443"
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    environment:
+      - DOMAIN=${DOMAIN}
+
+  authelia:
+    image: authelia/authelia:4.39.16
+    restart: always
+    volumes:
+      - ./authelia/configuration.yml:/config/configuration.yml:ro
+      - ./authelia/users_database.yml:/config/users_database.yml:ro
+      - authelia_data:/data
+    environment:
+      - TZ=UTC
+
+  headscale:
+    image: headscale/headscale:0.28.0
+    restart: always
+    command: serve
+    volumes:
+      - ./headscale/config.yaml:/etc/headscale/config.yaml:ro
+      - headscale_data:/var/lib/headscale
+    depends_on:
+      - caddy
+      - authelia
+    healthcheck:
+      test: ["CMD", "headscale", "health"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  yc-node:
+    image: tailscale/tailscale:latest
+    restart: always
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    devices:
+      - /dev/net/tun
+    sysctls:
+      - net.ipv4.ip_forward=1
+    volumes:
+      - yc_node_state:/var/lib/tailscale
+      - ./yc-node/entrypoint.sh:/entrypoint.sh:ro
+    entrypoint: /entrypoint.sh
+    environment:
+      - TS_STATE_DIR=/var/lib/tailscale
+      - TS_EXTRA_ARGS=--login-server=https://${DOMAIN} --authkey=${YC_NODE_AUTHKEY} --advertise-exit-node --hostname=yc-node --accept-dns=false
+    depends_on:
+      - headscale
+
+  us-corp:
+    image: tailscale/tailscale:latest
+    restart: always
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    devices:
+      - /dev/net/tun
+    sysctls:
+      - net.ipv4.ip_forward=1
+    volumes:
+      - us_corp_state:/var/lib/tailscale
+      - ./us-corp/entrypoint.sh:/entrypoint.sh:ro
+    entrypoint: /entrypoint.sh
+    networks:
+      - us-net
+
+  us-node:
+    image: tailscale/tailscale:latest
+    restart: always
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    devices:
+      - /dev/net/tun
+    volumes:
+      - us_node_state:/var/lib/tailscale
+      - ./us-node/entrypoint.sh:/entrypoint.sh:ro
+    entrypoint: /entrypoint.sh
+    environment:
+      - TS_STATE_DIR=/var/lib/tailscale
+      - TS_EXTRA_ARGS=--login-server=https://${DOMAIN} --authkey=${US_NODE_AUTHKEY} --advertise-exit-node --hostname=us-node --accept-dns=false
+    networks:
+      - us-net
+    depends_on:
+      - us-corp
+
+networks:
+  us-net:
+    driver: bridge
+
+volumes:
+  caddy_data:
+  caddy_config:
+  headscale_data:
+  authelia_data:
+  yc_node_state:
+  us_corp_state:
+  us_node_state:

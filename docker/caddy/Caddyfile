@@ -1,0 +1,7 @@
+{$DOMAIN} {
+    reverse_proxy headscale:8080
+}
+
+https://{$DOMAIN}:9443 {
+    reverse_proxy authelia:9091
+}

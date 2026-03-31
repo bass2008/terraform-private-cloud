@@ -14,27 +14,28 @@ resource "yandex_vpc_address" "static" {
 }
 
 resource "yandex_compute_instance" "vm" {
-  name        = var.vm_name
-  zone        = var.yc_zone
-  platform_id = "standard-v3"
-  hostname    = var.vm_name
+  name                      = var.vm_name
+  zone                      = var.yc_zone
+  platform_id               = "standard-v3"
+  hostname                  = var.vm_name
+  allow_stopping_for_update = true
 
   resources {
     cores         = 2
-    memory        = 2
+    memory        = 1
     core_fraction = 20
   }
 
   boot_disk {
     initialize_params {
       image_id = var.image_id
-      size     = 20
+      size     = 10
       type     = "network-hdd"
     }
   }
 
   scheduling_policy {
-    preemptible = true
+    preemptible = false
   }
 
   network_interface {

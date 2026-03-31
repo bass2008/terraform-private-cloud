@@ -3,35 +3,30 @@
 ## Что здесь поднято
 
 1. **Поднял Terraform'ом виртуалку в Yandex Cloud со статическим IP** — `terraform apply`
-2. **Поставил Headscale** — self-hosted координационный сервер Tailscale — `scripts/setup-headscale.sh`
-3. **Поставил Authelia** — OIDC-провайдер для авторизации по логину/паролю — `scripts/setup-authelia.sh`
-4. **Поставил Caddy** — reverse proxy с автоматическим HTTPS (Let's Encrypt) — `scripts/setup-caddy.sh`
+2. **Поставил Headscale** — self-hosted координационный сервер Tailscale
+3. **Поставил Authelia** — OIDC-провайдер для авторизации по логину/паролю
+4. **Поставил Caddy** — reverse proxy с автоматическим HTTPS (Let's Encrypt)
 5. **Включил встроенный DERP-сервер** — relay WireGuard через HTTPS (встроен в Headscale)
-6. **Настроил exit node `yc-node`** — весь трафик устройств идёт через VM — `scripts/setup-exit-node.sh`
-7. **Настроил exit node `us-node`** — double VPN через второй Tailscale в Docker — `scripts/setup-us-node.sh`
+6. **Настроил exit node `yc-node`** — весь трафик устройств идёт через VM
+7. **Настроил exit node `us-node`** — double VPN через второй Tailscale в Docker
+
+Всё поднимается через `docker-compose` — `docker/docker-compose.yml`
 
 ## Порядок установки с нуля
 
 ```bash
-# 1. Поднять VM
-cd terraform && tf && terraform apply
+# 1. Подготовить .env
+cp docker/.env.example docker/.env
+# Отредактировать docker/.env — домен, пользователи, пароли
 
-# 2. Задать переменные
-export VM_IP=$(terraform output -raw vm_external_ip)
-export DOMAIN=<DOMAIN>
+# 2. Запустить (terraform + docker compose — всё автоматически)
+tf && ./setup.sh
 
-# 3. Настроить сервисы (порядок важен: caddy → authelia → headscale → exit-node)
-ssh ubuntu@$VM_IP "DOMAIN=$DOMAIN bash -s" < scripts/setup-caddy.sh
-ssh ubuntu@$VM_IP "DOMAIN=$DOMAIN AUTHELIA_PASSWORD='<PASSWORD>' bash -s" < scripts/setup-authelia.sh
-ssh ubuntu@$VM_IP "DOMAIN=$DOMAIN HEADSCALE_OIDC=true bash -s" < scripts/setup-headscale.sh
-ssh ubuntu@$VM_IP "DOMAIN=$DOMAIN EXIT_NODE_USER=sergey bash -s" < scripts/setup-exit-node.sh
-ssh ubuntu@$VM_IP "DOMAIN=$DOMAIN EXIT_NODE_USER=sergey bash -s" < scripts/setup-us-node.sh
-
-# 4. Залогиниться в корпоративный VPN (us-node)
-ssh ubuntu@$VM_IP
+# 3. Залогиниться в корпоративный VPN (us-node)
+ssh ubuntu@<VM_IP>
 source /etc/profile.d/us-node.sh
 us-reset    # открыть URL в браузере, залогиниться
-us-up       # подключить EU exit node
+us-up
 ```
 
 ## Подключение клиентов
@@ -79,10 +74,21 @@ ssh ubuntu@<VM_IP>
 source /etc/profile.d/us-node.sh
 
 us-reset    # переавторизация во втором Tailscale (по необходимости)
-us-up       # подключить EU exit node
+us-up       # подключить exit node
 us-down     # отключить
-us-status   # статус корп. VPN
+us-status   # статус
 us-logs     # логи контейнера
+```
+
+## Если VM перезагрузилась
+
+```bash
+# Все docker-контейнеры стартуют автоматически (restart: always)
+# Но us-node нужно переавторизовать:
+ssh ubuntu@<VM_IP>
+source /etc/profile.d/us-node.sh
+us-reset    # открыть URL в браузере, залогиниться
+us-up
 ```
 
 ## Полезные команды на сервере
@@ -90,10 +96,10 @@ us-logs     # логи контейнера
 ```bash
 ssh ubuntu@<VM_IP>
 
-sudo headscale users list              # список пользователей
-sudo headscale nodes list              # подключённые устройства
-sudo tailscale status                  # статус yc-node
-sudo docker ps                         # статус контейнеров us-corp, us-node
+docker compose ps                       # статус контейнеров
+docker compose logs <сервис>            # логи сервиса
+docker compose exec -T headscale headscale nodes list   # подключённые устройства
+docker compose exec -T headscale headscale users list   # пользователи
 ```
 
 ## Terraform
