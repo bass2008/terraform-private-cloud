@@ -123,6 +123,11 @@ notifier:
   filesystem:
     filename: /data/notification.txt
 
+regulation:
+  max_retries: 5
+  find_time: 5m
+  ban_time: 24h
+
 access_control:
   default_policy: one_factor
 

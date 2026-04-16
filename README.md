@@ -1,115 +1,129 @@
 # Terraform Private Cloud
 
-## Что здесь поднято
+## What's deployed
 
-1. **Поднял Terraform'ом виртуалку в Yandex Cloud со статическим IP** — `terraform apply`
-2. **Поставил Headscale** — self-hosted координационный сервер Tailscale
-3. **Поставил Authelia** — OIDC-провайдер для авторизации по логину/паролю
-4. **Поставил Caddy** — reverse proxy с автоматическим HTTPS (Let's Encrypt)
-5. **Включил встроенный DERP-сервер** — relay WireGuard через HTTPS (встроен в Headscale)
-6. **Настроил exit node `yc-node`** — весь трафик устройств идёт через VM
-7. **Настроил exit node `us-node`** — double VPN через второй Tailscale в Docker
+1. **Terraform VM in Yandex Cloud with static IP** — `terraform apply`
+2. **Headscale** — self-hosted Tailscale coordination server
+3. **Authelia** — OIDC provider for login/password authentication
+4. **Caddy** — reverse proxy with automatic HTTPS (Let's Encrypt)
+5. **Embedded DERP server** — WireGuard relay over HTTPS (built into Headscale)
+6. **Exit node `yc-node`** — all client traffic routed through VM
+7. **Exit node `us-node`** — double VPN via second Tailscale in Docker
 
-Всё поднимается через `docker-compose` — `docker/docker-compose.yml`
+Everything runs via `docker-compose` — `docker/docker-compose.yml`
 
-## Порядок установки с нуля
+## Setup from scratch
 
 ```bash
-# 1. Подготовить .env
+# 1. Prepare .env
 cp docker/.env.example docker/.env
-# Отредактировать docker/.env — домен, пользователи, пароли
+# Edit docker/.env — domain, users, passwords
 
-# 2. Запустить (terraform + docker compose — всё автоматически)
+# 2. Run (terraform + docker compose — fully automated)
 tf && ./setup.sh
 
-# 3. Залогиниться в корпоративный VPN (us-node)
-ssh ubuntu@<VM_IP>
+# 3. Login to corporate VPN (us-node)
+ssh ubuntu@$VM_IP
 source /etc/profile.d/us-node.sh
-us-reset    # открыть URL в браузере, залогиниться
+us-reset    # open URL in browser, login
 us-up
 ```
 
-## Подключение клиентов
+## Connecting clients
 
-### Телефон (Android/iOS)
+### Phone (Android/iOS)
 
-1. Открыть Tailscale → три точки → **Use an alternate server**
-2. Ввести `https://<DOMAIN>`
-3. Откроется форма логина Authelia — ввести логин/пароль
-4. Готово. Выбрать exit node:
-   - `yc-node` — exit node на VM
+1. Open Tailscale → three dots → **Use an alternate server**
+2. Enter `https://<DOMAIN>`
+3. Authelia login form will appear — enter username/password
+4. Done. Select exit node:
+   - `yc-node` — exit node on VM
    - `us-node` — double VPN
 
-### Компьютер (Linux/macOS/Windows)
+### Desktop (Linux/macOS/Windows)
 
 ```bash
-# Логин (откроет браузер с формой Authelia)
+# Login (opens browser with Authelia form)
 sudo tailscale login --login-server https://<DOMAIN>
 
-# Включить exit node
+# Enable exit node
 sudo tailscale set --exit-node=yc-node
 
-# Выключить exit node
+# Disable exit node
 sudo tailscale set --exit-node=
 
-# Разлогин
+# Logout
 sudo tailscale logout
 
-# Переключение между профилями (если есть корпоративный Tailscale)
+# Switch between profiles (if you have corporate Tailscale)
 tailscale switch --list
-sudo tailscale switch <профиль>
+sudo tailscale switch <profile>
 ```
 
 ## Exit nodes
 
-| Имя | Описание |
-|-----|----------|
-| `yc-node` | Exit node на VM |
-| `us-node` | Double VPN — два Tailscale в Docker-контейнерах |
+| Name | Description |
+|------|-------------|
+| `yc-node` | Exit node on VM |
+| `us-node` | Double VPN — two Tailscale instances in Docker containers |
 
-### Управление us-node (на сервере)
+### Managing us-node (on server)
 
 ```bash
-ssh ubuntu@<VM_IP>
+ssh ubuntu@$VM_IP
 source /etc/profile.d/us-node.sh
 
-us-reset    # переавторизация во втором Tailscale (по необходимости)
-us-up       # подключить exit node
-us-down     # отключить
-us-status   # статус
-us-logs     # логи контейнера
+us-reset    # re-auth second Tailscale (as needed)
+us-up       # connect exit node
+us-down     # disconnect
+us-status   # status
+us-logs     # container logs
 ```
 
-## Если VM перезагрузилась
+## Diagnostics
 
 ```bash
-# Все docker-контейнеры стартуют автоматически (restart: always)
-# Но us-node нужно переавторизовать:
-ssh ubuntu@<VM_IP>
+ssh ubuntu@$VM_IP "bash ~/docker/check-relay.sh"
+
+ssh ubuntu@$VM_IP "bash ~/docker/restart-relay.sh"
+
+ssh ubuntu@$VM_IP "bash ~/docker/auth-logs.sh 100"
+```
+
+After restart, toggle Tailscale off/on on the phone.
+
+## If VM rebooted
+
+```bash
+# All docker containers start automatically (restart: always)
+# But us-node needs re-auth:
+ssh ubuntu@$VM_IP
 source /etc/profile.d/us-node.sh
-us-reset    # открыть URL в браузере, залогиниться
+us-reset    # open URL in browser, login
 us-up
 ```
 
-## Полезные команды на сервере
+## Useful commands on server
 
 ```bash
-ssh ubuntu@<VM_IP>
+ssh ubuntu@$VM_IP
 
-docker compose ps                       # статус контейнеров
-docker compose logs <сервис>            # логи сервиса
-docker compose exec -T headscale headscale nodes list   # подключённые устройства
-docker compose exec -T headscale headscale users list   # пользователи
+docker compose ps                       # container status
+docker compose logs <service>           # service logs
+docker compose exec -T headscale headscale nodes list   # connected devices
+docker compose exec -T headscale headscale users list   # users
+bash ~/docker/auth-logs.sh                              # auth logs (last 20)
+bash ~/docker/auth-logs.sh 50                           # auth logs (last 50)
 ```
 
 ## Terraform
 
-State хранится в Yandex Object Storage (S3-совместимый backend).
+State is stored in Yandex Object Storage (S3-compatible backend).
 
 ```
 terraform/
-├── bootstrap/   ← одноразовый: создаёт S3 бакет для state
-└── ...          ← основной: VM, сеть
+├── bootstrap/   ← one-time: creates S3 bucket for state
+└── ...          ← main: VM, network
 ```
 
-Первый запуск: [`terraform/bootstrap/README.md`](terraform/bootstrap/README.md)
+First run: [`terraform/bootstrap/README.md`](terraform/bootstrap/README.md)
