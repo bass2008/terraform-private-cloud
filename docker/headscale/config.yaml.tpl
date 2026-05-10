@@ -45,12 +45,11 @@ policy:
   path: ""
 
 dns:
-  magic_dns: true
+  magic_dns: false
+  override_local_dns: false
   base_domain: personal.tail
   nameservers:
-    global:
-      - 1.1.1.1
-      - 8.8.8.8
+    global: []
 
 oidc:
   only_start_if_oidc_is_available: true
