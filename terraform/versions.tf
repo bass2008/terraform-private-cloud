@@ -12,9 +12,9 @@ terraform {
     endpoints = {
       s3 = "https://storage.yandexcloud.net"
     }
-    bucket = "momo-store-tfstate-hjb4rfs"
+    bucket = "private-cloud-tfstate-hjb4rfs"
     region = "ru-central1"
-    key    = "momo-store/infrastructure/terraform.tfstate"
+    key    = "private-cloud/infrastructure/terraform.tfstate"
 
     skip_region_validation      = true
     skip_credentials_validation = true

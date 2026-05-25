@@ -36,7 +36,7 @@ Bootstrap-ресурсы удаляются вручную **после** уда
 ```bash
 # 1. Очистить содержимое бакета (включая все версии объектов)
 # 2. Удалить бакет:
-yc storage bucket delete --name momo-store-tfstate-hjb4rfs
+yc storage bucket delete --name private-cloud-tfstate-hjb4rfs
 # 3. Удалить ресурсы terraform:
 terraform destroy
 ```

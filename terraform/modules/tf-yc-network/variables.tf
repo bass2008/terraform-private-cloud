@@ -6,7 +6,7 @@ variable "network_name" {
 variable "network_description" {
   type        = string
   description = "Description of VPC network"
-  default     = "Managed network for Momo Store Kubernetes cluster"
+  default     = "Managed network for private cloud"
 }
 
 variable "subnets" {
